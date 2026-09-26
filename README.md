@@ -1,6 +1,6 @@
 # Virtual Assistant
 
-A command-line Python virtual assistant rebuilt from an undergraduate project. It supports typed commands out of the box and optional microphone input and text-to-speech.
+A command-line Python based virtual assistant. It supports typed commands out of the box and optional microphone input and text-to-speech.
 
 ## Features
 
