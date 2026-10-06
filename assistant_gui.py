@@ -155,9 +155,14 @@ class AssistantDashboard(tk.Tk):
         ttk.Button(reminder_frame, text="+  Add reminder", command=self.add_reminder, style="Primary.TButton").grid(row=2, column=0, sticky="ew", pady=(6, 8))
         self.reminder_list = tk.Listbox(reminder_frame, height=4, activestyle="none", borderwidth=0, highlightthickness=1, highlightbackground="#e5e7eb", selectbackground="#dbeafe", selectforeground="#1e3a8a", background="#f9fafb", foreground="#1f2937", font=("Helvetica", 11))
         self.reminder_list.grid(row=3, column=0, sticky="nsew", pady=(4, 0))
-        self.reminder_list.bind("<<ListboxSelect>>", self._update_action_states)
-        self.delete_reminder_button = ttk.Button(reminder_frame, text="Delete selected", command=self.delete_reminder, style="Danger.TButton", state="disabled")
-        self.delete_reminder_button.grid(row=4, column=0, sticky="ew", pady=(8, 0))
+        self.reminder_list.bind("<<ListboxSelect>>", self._select_reminder)
+        reminder_actions = ttk.Frame(reminder_frame, style="Card.TLabelframe")
+        reminder_actions.grid(row=4, column=0, sticky="ew", pady=(8, 0))
+        reminder_actions.columnconfigure((0, 1), weight=1)
+        self.update_reminder_button = ttk.Button(reminder_actions, text="Update selected", command=self.update_reminder, style="Secondary.TButton", state="disabled")
+        self.update_reminder_button.grid(row=0, column=0, sticky="ew", padx=(0, 4))
+        self.delete_reminder_button = ttk.Button(reminder_actions, text="Delete selected", command=self.delete_reminder, style="Danger.TButton", state="disabled")
+        self.delete_reminder_button.grid(row=0, column=1, sticky="ew", padx=(4, 0))
 
         briefing = ttk.LabelFrame(shell, text="Today at a glance", padding=16, style="Card.TLabelframe")
         briefing.grid(row=4, column=0, columnspan=2, sticky="nsew")
@@ -291,6 +296,39 @@ class AssistantDashboard(tk.Tk):
             self.reminders.delete(selected[0] + 1)
             self.refresh()
 
+    def _select_reminder(self, _event=None) -> None:
+        selected = self.reminder_list.curselection()
+        if selected:
+            reminder = self.reminders.pending()[selected[0]]
+            self.reminder_message.delete(0, tk.END)
+            self.reminder_message.insert(0, reminder.message)
+            self.reminder_time.delete(0, tk.END)
+            self.reminder_time.insert(0, reminder.due_at.replace("T", " ")[:16])
+        self._update_action_states()
+
+    def update_reminder(self) -> None:
+        selected = self.reminder_list.curselection()
+        if not selected:
+            return
+        message = self.reminder_message.get().strip()
+        if not message or message == "What should I remind you about?":
+            messagebox.showerror("Reminder", "Enter a reminder message.")
+            return
+        try:
+            due_at = datetime.strptime(self.reminder_time.get().strip(), "%Y-%m-%d %H:%M")
+        except ValueError:
+            messagebox.showerror("Reminder", "Use YYYY-MM-DD HH:MM for the reminder time.")
+            return
+        if due_at <= datetime.now():
+            messagebox.showerror("Reminder", "Choose a future date and time.")
+            return
+        self.reminders.update(selected[0] + 1, message, due_at)
+        self.reminder_message.delete(0, tk.END)
+        self.reminder_message.insert(0, "What should I remind you about?")
+        self.reminder_time.delete(0, tk.END)
+        self.reminder_time.insert(0, "YYYY-MM-DD HH:MM")
+        self.refresh()
+
     def _clear_due_placeholder(self, _event=None) -> None:
         if self.task_due.get() == "YYYY-MM-DD HH:MM":
             self.task_due.delete(0, tk.END)
@@ -310,6 +348,7 @@ class AssistantDashboard(tk.Tk):
         self.delete_note_button.config(state=note_state)
         self.delete_event_button.config(state=event_state)
         self.update_event_button.config(state=event_state)
+        self.update_reminder_button.config(state=reminder_state)
         self.delete_reminder_button.config(state=reminder_state)
 
     def show_weather(self) -> None:

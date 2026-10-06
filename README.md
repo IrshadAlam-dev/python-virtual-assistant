@@ -9,6 +9,7 @@ A command-line Python based virtual assistant. It supports typed commands out of
 - Wikipedia summaries and browser web searches
 - Task creation, priorities, due dates, completion, and removal persisted in `data/tasks.json`
 - Persistent notes and reminders stored locally in `data/`
+- Add, edit, and delete pending reminders from the dashboard or command line
 - A local calendar for adding, listing, editing, and deleting events, with a 10-minute alert while the app is running
 - A daily briefing of tasks and reminders due today
 - A Tkinter dashboard for tasks, notes, reminders, calendar events, current weather, and a daily briefing

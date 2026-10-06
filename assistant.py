@@ -26,6 +26,7 @@ HELP = """Commands:
   remind me in <minutes> minutes to <message>
   remind me on YYYY-MM-DD HH:MM to <message>
   reminders                         List pending reminders
+  edit reminder <number> to <message> at YYYY-MM-DD HH:MM
   delete reminder <number>          Delete a reminder
   add event <title> on <date/time>  Add a local calendar event
   events                            List calendar events
@@ -177,6 +178,16 @@ class VirtualAssistant:
         elif lower in {"reminders", "list reminders"}:
             reminders = self.reminder_store.pending()
             self.respond("\n".join(f"{i}. {item.message} — {self._display_date(item.due_at)}" for i, item in enumerate(reminders, 1)) if reminders else "You have no pending reminders.")
+        elif match := re.fullmatch(r"edit reminder (\d+) to (.+) at (\d{4}-\d{2}-\d{2} \d{2}:\d{2})", command, re.IGNORECASE):
+            try:
+                due = datetime.strptime(match.group(3), "%Y-%m-%d %H:%M")
+                if due <= datetime.now():
+                    self.respond("Choose a future date and time for the reminder.")
+                else:
+                    item = self.reminder_store.update(int(match.group(1)), match.group(2), due)
+                    self.respond(f"Updated reminder for {self._display_date(item.due_at)}." if item else "That reminder number does not exist.")
+            except ValueError:
+                self.respond("Use a date like 2026-10-08 14:30.")
         elif match := re.fullmatch(r"delete reminder (\d+)", lower):
             item = self.reminder_store.delete(int(match.group(1)))
             self.respond("Reminder deleted." if item else "That reminder number does not exist.")

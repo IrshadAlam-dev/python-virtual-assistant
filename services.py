@@ -393,6 +393,17 @@ class ReminderStore:
     def pending(self) -> list[Reminder]:
         return [item for item in self._read() if not item.delivered]
 
+    def update(self, number: int, message: str, due: datetime) -> Reminder | None:
+        reminders = self._read()
+        pending = [item for item in reminders if not item.delivered]
+        if not 1 <= number <= len(pending):
+            return None
+        reminder = pending[number - 1]
+        reminder.message = message.strip()
+        reminder.due_at = due.isoformat(timespec="seconds")
+        self._write(reminders)
+        return reminder
+
     def delete(self, number: int) -> Reminder | None:
         reminders = self._read()
         pending = [item for item in reminders if not item.delivered]
