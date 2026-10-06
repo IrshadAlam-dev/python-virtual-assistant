@@ -14,14 +14,14 @@ class AssistantDashboard(tk.Tk):
     def __init__(self) -> None:
         super().__init__()
         self.title("Orbit — Personal Assistant")
-        self.minsize(900, 760)
+        self.minsize(900, 900)
         self.tasks = TaskStore(Path("data/tasks.json"))
         self.notes = NoteStore(Path("data/notes.json"))
         self.reminders = ReminderStore(Path("data/reminders.json"))
         self.settings = SettingsStore(Path("data/settings.json"))
         self.calendar = CalendarStore(Path("data/events.json"))
         self.web = WebService()
-        self.reminder_service = ReminderService(self.reminders, self._notify_reminder)
+        self.reminder_service = ReminderService(self.reminders, self._notify_reminder, self.calendar)
         self._configure_theme()
         self._build()
         self.refresh()
@@ -53,6 +53,7 @@ class AssistantDashboard(tk.Tk):
         self.rowconfigure(0, weight=1)
         shell.columnconfigure((0, 1), weight=1)
         shell.rowconfigure(2, weight=1)
+        shell.rowconfigure(3, weight=1)
         shell.rowconfigure(4, weight=1)
 
         header = ttk.Frame(shell, style="App.TFrame")
@@ -116,24 +117,47 @@ class AssistantDashboard(tk.Tk):
         self.delete_note_button.grid(row=4, column=0, sticky="ew", pady=(10, 0))
 
         calendar_frame = ttk.LabelFrame(shell, text="Calendar", padding=16, style="Card.TLabelframe")
-        calendar_frame.grid(row=3, column=0, columnspan=2, sticky="ew", pady=(0, 16))
+        calendar_frame.grid(row=3, column=0, sticky="nsew", padx=(0, 8), pady=(0, 16))
         calendar_frame.columnconfigure(0, weight=1)
-        calendar_frame.columnconfigure(1, weight=1)
-        calendar_frame.columnconfigure(2, weight=0)
+        calendar_frame.rowconfigure(3, weight=1)
         self.event_title = ttk.Entry(calendar_frame)
         self.event_title.insert(0, "Event title")
-        self.event_title.grid(row=0, column=0, sticky="ew", padx=(0, 6))
+        self.event_title.grid(row=0, column=0, sticky="ew")
         self.event_title.bind("<FocusIn>", lambda _event: self._clear_placeholder(self.event_title, "Event title"))
         self.event_time = ttk.Entry(calendar_frame)
         self.event_time.insert(0, "YYYY-MM-DD HH:MM")
-        self.event_time.grid(row=0, column=1, sticky="ew", padx=6)
+        self.event_time.grid(row=1, column=0, sticky="ew", pady=(6, 0))
         self.event_time.bind("<FocusIn>", lambda _event: self._clear_placeholder(self.event_time, "YYYY-MM-DD HH:MM"))
-        ttk.Button(calendar_frame, text="+  Add event", command=self.add_event, style="Primary.TButton").grid(row=0, column=2, padx=(6, 0))
+        ttk.Button(calendar_frame, text="+  Add event", command=self.add_event, style="Primary.TButton").grid(row=2, column=0, sticky="ew", pady=(6, 0))
         self.event_list = tk.Listbox(calendar_frame, height=4, activestyle="none", borderwidth=0, highlightthickness=1, highlightbackground="#e5e7eb", selectbackground="#dbeafe", selectforeground="#1e3a8a", background="#f9fafb", foreground="#1f2937", font=("Helvetica", 11))
-        self.event_list.grid(row=1, column=0, columnspan=3, sticky="ew", pady=(12, 0))
-        self.event_list.bind("<<ListboxSelect>>", self._update_action_states)
-        self.delete_event_button = ttk.Button(calendar_frame, text="Delete selected event", command=self.delete_event, style="Danger.TButton", state="disabled")
-        self.delete_event_button.grid(row=2, column=0, columnspan=3, sticky="e", pady=(8, 0))
+        self.event_list.grid(row=3, column=0, sticky="nsew", pady=(12, 0))
+        self.event_list.bind("<<ListboxSelect>>", self._select_event)
+        event_actions = ttk.Frame(calendar_frame, style="Card.TLabelframe")
+        event_actions.grid(row=4, column=0, sticky="ew", pady=(8, 0))
+        event_actions.columnconfigure((0, 1), weight=1)
+        self.update_event_button = ttk.Button(event_actions, text="Update selected", command=self.update_event, style="Secondary.TButton", state="disabled")
+        self.update_event_button.grid(row=0, column=0, sticky="ew", padx=(0, 4))
+        self.delete_event_button = ttk.Button(event_actions, text="Delete selected", command=self.delete_event, style="Danger.TButton", state="disabled")
+        self.delete_event_button.grid(row=0, column=1, sticky="ew", padx=(4, 0))
+
+        reminder_frame = ttk.LabelFrame(shell, text="Reminders", padding=16, style="Card.TLabelframe")
+        reminder_frame.grid(row=3, column=1, sticky="nsew", padx=(8, 0), pady=(0, 16))
+        reminder_frame.columnconfigure(0, weight=1)
+        reminder_frame.rowconfigure(3, weight=1)
+        self.reminder_message = ttk.Entry(reminder_frame)
+        self.reminder_message.insert(0, "What should I remind you about?")
+        self.reminder_message.grid(row=0, column=0, sticky="ew")
+        self.reminder_message.bind("<FocusIn>", lambda _event: self._clear_placeholder(self.reminder_message, "What should I remind you about?"))
+        self.reminder_time = ttk.Entry(reminder_frame)
+        self.reminder_time.insert(0, "YYYY-MM-DD HH:MM")
+        self.reminder_time.grid(row=1, column=0, sticky="ew", pady=(6, 0))
+        self.reminder_time.bind("<FocusIn>", lambda _event: self._clear_placeholder(self.reminder_time, "YYYY-MM-DD HH:MM"))
+        ttk.Button(reminder_frame, text="+  Add reminder", command=self.add_reminder, style="Primary.TButton").grid(row=2, column=0, sticky="ew", pady=(6, 8))
+        self.reminder_list = tk.Listbox(reminder_frame, height=4, activestyle="none", borderwidth=0, highlightthickness=1, highlightbackground="#e5e7eb", selectbackground="#dbeafe", selectforeground="#1e3a8a", background="#f9fafb", foreground="#1f2937", font=("Helvetica", 11))
+        self.reminder_list.grid(row=3, column=0, sticky="nsew", pady=(4, 0))
+        self.reminder_list.bind("<<ListboxSelect>>", self._update_action_states)
+        self.delete_reminder_button = ttk.Button(reminder_frame, text="Delete selected", command=self.delete_reminder, style="Danger.TButton", state="disabled")
+        self.delete_reminder_button.grid(row=4, column=0, sticky="ew", pady=(8, 0))
 
         briefing = ttk.LabelFrame(shell, text="Today at a glance", padding=16, style="Card.TLabelframe")
         briefing.grid(row=4, column=0, columnspan=2, sticky="nsew")
@@ -211,6 +235,62 @@ class AssistantDashboard(tk.Tk):
             self.calendar.delete(selected[0] + 1)
             self.refresh()
 
+    def _select_event(self, _event=None) -> None:
+        selected = self.event_list.curselection()
+        if selected:
+            event = self.calendar.list()[selected[0]]
+            self.event_title.delete(0, tk.END)
+            self.event_title.insert(0, event.title)
+            self.event_time.delete(0, tk.END)
+            self.event_time.insert(0, event.starts_at.replace("T", " "))
+        self._update_action_states()
+
+    def update_event(self) -> None:
+        selected = self.event_list.curselection()
+        if not selected:
+            return
+        title = self.event_title.get().strip()
+        try:
+            starts_at = datetime.strptime(self.event_time.get().strip(), "%Y-%m-%d %H:%M")
+        except ValueError:
+            messagebox.showerror("Calendar", "Use YYYY-MM-DD HH:MM for the event date and time.")
+            return
+        if not title or starts_at < datetime.now():
+            messagebox.showerror("Calendar", "Enter a title and choose a future event time.")
+            return
+        self.calendar.update(selected[0] + 1, title, starts_at)
+        self.event_title.delete(0, tk.END)
+        self.event_time.delete(0, tk.END)
+        self.event_time.insert(0, "YYYY-MM-DD HH:MM")
+        self.refresh()
+
+    def add_reminder(self) -> None:
+        message = self.reminder_message.get().strip()
+        time_text = self.reminder_time.get().strip()
+        if not message or message == "What should I remind you about?":
+            messagebox.showerror("Reminder", "Enter a reminder message.")
+            return
+        try:
+            due_at = datetime.strptime(time_text, "%Y-%m-%d %H:%M")
+        except ValueError:
+            messagebox.showerror("Reminder", "Use YYYY-MM-DD HH:MM for the reminder time.")
+            return
+        if due_at <= datetime.now():
+            messagebox.showerror("Reminder", "Choose a future date and time.")
+            return
+        self.reminders.add(message, due_at)
+        self.reminder_message.delete(0, tk.END)
+        self.reminder_message.insert(0, "What should I remind you about?")
+        self.reminder_time.delete(0, tk.END)
+        self.reminder_time.insert(0, "YYYY-MM-DD HH:MM")
+        self.refresh()
+
+    def delete_reminder(self) -> None:
+        selected = self.reminder_list.curselection()
+        if selected:
+            self.reminders.delete(selected[0] + 1)
+            self.refresh()
+
     def _clear_due_placeholder(self, _event=None) -> None:
         if self.task_due.get() == "YYYY-MM-DD HH:MM":
             self.task_due.delete(0, tk.END)
@@ -224,10 +304,13 @@ class AssistantDashboard(tk.Tk):
         task_state = "normal" if self.task_list.curselection() else "disabled"
         note_state = "normal" if self.note_list.curselection() else "disabled"
         event_state = "normal" if self.event_list.curselection() else "disabled"
+        reminder_state = "normal" if self.reminder_list.curselection() else "disabled"
         self.complete_button.config(state=task_state)
         self.delete_task_button.config(state=task_state)
         self.delete_note_button.config(state=note_state)
         self.delete_event_button.config(state=event_state)
+        self.update_event_button.config(state=event_state)
+        self.delete_reminder_button.config(state=reminder_state)
 
     def show_weather(self) -> None:
         settings = self.settings.load()
@@ -241,14 +324,14 @@ class AssistantDashboard(tk.Tk):
     def show_briefing(self) -> None:
         today = datetime.now().date()
         due_tasks = [task for task in self.tasks.list() if not task.done and task.due_at and datetime.fromisoformat(task.due_at).date() <= today]
-        reminders = [item for item in self.reminders.pending() if datetime.fromisoformat(item.due_at).date() <= today]
         events = [item for item in self.calendar.list() if datetime.fromisoformat(item.starts_at).date() == today]
+        due_reminders = [item for item in self.reminders.pending() if datetime.fromisoformat(item.due_at).date() <= today]
         lines = [f"{today:%A, %B %d}", "", "Today's calendar:"]
         lines += [f"• {datetime.fromisoformat(event.starts_at):%I:%M %p} — {event.title}" for event in events] or ["• No events today."]
         lines += ["", "Tasks due today:"]
         lines += [f"• [{task.priority}] {task.title}" for task in due_tasks] or ["• None"]
         lines += ["", "Reminders today:"]
-        lines += [f"• {item.message} at {datetime.fromisoformat(item.due_at):%I:%M %p}" for item in reminders] or ["• None"]
+        lines += [f"• {item.message} at {datetime.fromisoformat(item.due_at):%I:%M %p}" for item in due_reminders] or ["• None"]
         self.briefing_text.config(state="normal")
         self.briefing_text.delete("1.0", tk.END)
         self.briefing_text.insert("1.0", "\n".join(lines))
@@ -265,6 +348,9 @@ class AssistantDashboard(tk.Tk):
         self.event_list.delete(0, tk.END)
         for event in self.calendar.list():
             self.event_list.insert(tk.END, f"{datetime.fromisoformat(event.starts_at):%b %d, %I:%M %p}  ·  {event.title}")
+        self.reminder_list.delete(0, tk.END)
+        for reminder in self.reminders.pending():
+            self.reminder_list.insert(tk.END, f"{datetime.fromisoformat(reminder.due_at):%b %d, %I:%M %p}  ·  {reminder.message}")
         self.show_briefing()
         self._update_action_states()
 

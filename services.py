@@ -51,6 +51,7 @@ class CalendarEvent:
     title: str
     starts_at: str
     created_at: str = ""
+    notified: bool = False
 
 
 class TaskStore:
@@ -211,6 +212,17 @@ class CalendarStore:
         self._write(events)
         return event
 
+    def update(self, number: int, title: str, starts_at: datetime) -> CalendarEvent | None:
+        events = self._read()
+        if not 1 <= number <= len(events):
+            return None
+        event = events[number - 1]
+        event.title = title.strip()
+        event.starts_at = starts_at.isoformat(timespec="minutes")
+        event.notified = False
+        self._write(events)
+        return event
+
     def list(self) -> list[CalendarEvent]:
         return self._read()
 
@@ -221,6 +233,26 @@ class CalendarStore:
         event = events.pop(number - 1)
         self._write(events)
         return event
+
+    def due_soon(self, now: datetime | None = None, lead_minutes: int = 10) -> list[CalendarEvent]:
+        now = now or datetime.now()
+        events = self._read()
+        upcoming = []
+        changed = False
+        for event in events:
+            starts_at = datetime.fromisoformat(event.starts_at)
+            if event.notified or starts_at <= now:
+                if not event.notified and starts_at <= now:
+                    event.notified = True
+                    changed = True
+                continue
+            if starts_at - timedelta(minutes=lead_minutes) <= now:
+                event.notified = True
+                upcoming.append(event)
+                changed = True
+        if changed:
+            self._write(events)
+        return upcoming
 
 
 class WebService:
@@ -363,19 +395,22 @@ class ReminderStore:
 
     def delete(self, number: int) -> Reminder | None:
         reminders = self._read()
-        if not 1 <= number <= len(reminders):
+        pending = [item for item in reminders if not item.delivered]
+        if not 1 <= number <= len(pending):
             return None
-        reminder = reminders.pop(number - 1)
+        reminder = pending[number - 1]
+        reminders.remove(reminder)
         self._write(reminders)
         return reminder
 
 
 class ReminderService:
-    """Checks persistent reminders in the background while the assistant runs."""
+    """Checks persistent reminders and calendar alerts while the app runs."""
 
-    def __init__(self, store: ReminderStore, callback: Callable[[str], None]) -> None:
+    def __init__(self, store: ReminderStore, callback: Callable[[str], None], calendar: CalendarStore | None = None) -> None:
         self.store = store
         self.callback = callback
+        self.calendar = calendar
         self._thread: threading.Thread | None = None
 
     def schedule(self, minutes: int, message: str) -> datetime:
@@ -392,6 +427,11 @@ class ReminderService:
                 for reminder in self.store.due():
                     self.callback(f"Reminder: {reminder.message}")
                     self._notify_macos(reminder.message)
+                if self.calendar:
+                    for event in self.calendar.due_soon():
+                        message = f"Upcoming event in 10 minutes: {event.title}"
+                        self.callback(message)
+                        self._notify_macos(message)
                 threading.Event().wait(15)
 
         self._thread = threading.Thread(target=check_loop, daemon=True)

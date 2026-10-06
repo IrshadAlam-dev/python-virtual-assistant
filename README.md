@@ -9,9 +9,9 @@ A command-line Python based virtual assistant. It supports typed commands out of
 - Wikipedia summaries and browser web searches
 - Task creation, priorities, due dates, completion, and removal persisted in `data/tasks.json`
 - Persistent notes and reminders stored locally in `data/`
-- A local calendar for adding, listing, and deleting events
+- A local calendar for adding, listing, editing, and deleting events, with a 10-minute alert while the app is running
 - A daily briefing of tasks and reminders due today
-- A Tkinter dashboard for tasks, notes, current weather, and a daily briefing
+- A Tkinter dashboard for tasks, notes, reminders, calendar events, current weather, and a daily briefing
 - Optional voice commands with `SpeechRecognition` and spoken responses with `pyttsx3`
 
 ## Setup
@@ -64,6 +64,7 @@ delete task 1
 add event Project review on 2026-10-08 14:30
 add event Team check-in on tomorrow at 9 AM
 events
+edit event 1 to Project review with advisor on 2026-10-08 15:00
 delete event 1
 take note Include screenshots in the presentation
 notes

@@ -28,7 +28,8 @@ HELP = """Commands:
   reminders                         List pending reminders
   delete reminder <number>          Delete a reminder
   add event <title> on <date/time>  Add a local calendar event
-  events                            List upcoming calendar events
+  events                            List calendar events
+  edit event <number> to <title> on <date/time>
   delete event <number>             Delete a calendar event
   daily briefing                    Show today's tasks and reminders
   set city <city>                   Set your briefing location
@@ -47,7 +48,7 @@ class VirtualAssistant:
         self.settings_store = SettingsStore(Path("data/settings.json"))
         self.calendar = CalendarStore(Path("data/events.json"))
         self.web = WebService()
-        self.reminders = ReminderService(self.reminder_store, self.respond)
+        self.reminders = ReminderService(self.reminder_store, self.respond, self.calendar)
         self.voice_enabled = False
         self.speaker = self._build_speaker()
 
@@ -191,6 +192,15 @@ class VirtualAssistant:
         elif lower in {"events", "calendar", "list events"}:
             events = self.calendar.list()
             self.respond("\n".join(f"{i}. {event.title} — {self._display_date(event.starts_at)}" for i, event in enumerate(events, 1)) if events else "Your calendar is empty.")
+        elif match := re.fullmatch(r"edit event (\d+) to (.+?) on (.+)", command, re.IGNORECASE):
+            starts_at = self._parse_date_phrase(match.group(3))
+            if starts_at is None:
+                self.respond("Use a date like 2026-10-08 14:30, or say 'tomorrow at 9 AM'.")
+            elif starts_at < datetime.now():
+                self.respond("That event time has already passed. Please choose a future time.")
+            else:
+                event = self.calendar.update(int(match.group(1)), match.group(2), starts_at)
+                self.respond(f"Updated {event.title} for {self._display_date(event.starts_at)}." if event else "That event number does not exist.")
         elif match := re.fullmatch(r"delete event (\d+)", lower):
             event = self.calendar.delete(int(match.group(1)))
             self.respond(f"Deleted {event.title}." if event else "That event number does not exist.")
