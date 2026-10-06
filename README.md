@@ -9,6 +9,7 @@ A command-line Python based virtual assistant. It supports typed commands out of
 - Wikipedia summaries and browser web searches
 - Task creation, priorities, due dates, completion, and removal persisted in `data/tasks.json`
 - Persistent notes and reminders stored locally in `data/`
+- A local calendar for adding, listing, and deleting events
 - A daily briefing of tasks and reminders due today
 - A Tkinter dashboard for tasks, notes, current weather, and a daily briefing
 - Optional voice commands with `SpeechRecognition` and spoken responses with `pyttsx3`
@@ -60,6 +61,10 @@ add task Call the mentor by tomorrow at 9 AM
 tasks
 complete task 1
 delete task 1
+add event Project review on 2026-10-08 14:30
+add event Team check-in on tomorrow at 9 AM
+events
+delete event 1
 take note Include screenshots in the presentation
 notes
 open https://www.python.org
@@ -80,7 +85,8 @@ The project reads public web data and does not require API keys. Network failure
 
 ```text
 assistant.py       Command-line application and intent handling
-services.py        Weather, news, knowledge, task, and reminder services
+assistant_gui.py   Tkinter dashboard
+services.py        Weather, news, knowledge, task, reminder, and calendar services
 requirements.txt   Runtime dependencies
 tests/             Local task-store tests
 ```

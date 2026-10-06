@@ -46,6 +46,13 @@ class Settings:
     temperature_unit: str = "celsius"
 
 
+@dataclass
+class CalendarEvent:
+    title: str
+    starts_at: str
+    created_at: str = ""
+
+
 class TaskStore:
     """A small JSON-backed task store."""
 
@@ -172,6 +179,48 @@ class SettingsStore:
 
     def save(self, settings: Settings) -> None:
         self.path.write_text(json.dumps(asdict(settings), indent=2) + "\n", encoding="utf-8")
+
+
+class CalendarStore:
+    """Local calendar events stored in chronological order."""
+
+    def __init__(self, path: Path) -> None:
+        self.path = path
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        if not self.path.exists():
+            self._write([])
+
+    def _read(self) -> list[CalendarEvent]:
+        try:
+            events = [CalendarEvent(**record) for record in json.loads(self.path.read_text(encoding="utf-8"))]
+            return sorted(events, key=lambda event: event.starts_at)
+        except (json.JSONDecodeError, OSError, TypeError):
+            return []
+
+    def _write(self, events: list[CalendarEvent]) -> None:
+        self.path.write_text(json.dumps([asdict(event) for event in events], indent=2) + "\n", encoding="utf-8")
+
+    def add(self, title: str, starts_at: datetime) -> CalendarEvent:
+        event = CalendarEvent(
+            title=title.strip(),
+            starts_at=starts_at.isoformat(timespec="minutes"),
+            created_at=datetime.now().isoformat(timespec="seconds"),
+        )
+        events = self._read()
+        events.append(event)
+        self._write(events)
+        return event
+
+    def list(self) -> list[CalendarEvent]:
+        return self._read()
+
+    def delete(self, number: int) -> CalendarEvent | None:
+        events = self._read()
+        if not 1 <= number <= len(events):
+            return None
+        event = events.pop(number - 1)
+        self._write(events)
+        return event
 
 
 class WebService:

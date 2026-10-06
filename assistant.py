@@ -6,7 +6,7 @@ import re
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from services import NoteStore, ReminderService, ReminderStore, SettingsStore, TaskStore, WebService
+from services import CalendarStore, NoteStore, ReminderService, ReminderStore, SettingsStore, TaskStore, WebService
 
 
 HELP = """Commands:
@@ -27,6 +27,9 @@ HELP = """Commands:
   remind me on YYYY-MM-DD HH:MM to <message>
   reminders                         List pending reminders
   delete reminder <number>          Delete a reminder
+  add event <title> on <date/time>  Add a local calendar event
+  events                            List upcoming calendar events
+  delete event <number>             Delete a calendar event
   daily briefing                    Show today's tasks and reminders
   set city <city>                   Set your briefing location
   set unit Celsius/Fahrenheit       Set your preferred temperature unit
@@ -42,6 +45,7 @@ class VirtualAssistant:
         self.notes = NoteStore(Path("data/notes.json"))
         self.reminder_store = ReminderStore(Path("data/reminders.json"))
         self.settings_store = SettingsStore(Path("data/settings.json"))
+        self.calendar = CalendarStore(Path("data/events.json"))
         self.web = WebService()
         self.reminders = ReminderService(self.reminder_store, self.respond)
         self.voice_enabled = False
@@ -175,6 +179,21 @@ class VirtualAssistant:
         elif match := re.fullmatch(r"delete reminder (\d+)", lower):
             item = self.reminder_store.delete(int(match.group(1)))
             self.respond("Reminder deleted." if item else "That reminder number does not exist.")
+        elif match := re.fullmatch(r"add event (.+?) on (.+)", command, re.IGNORECASE):
+            starts_at = self._parse_date_phrase(match.group(2))
+            if starts_at is None:
+                self.respond("Use a date like 2026-10-08 14:30, or say 'tomorrow at 9 AM'.")
+            elif starts_at < datetime.now():
+                self.respond("That event time has already passed. Please choose a future time.")
+            else:
+                event = self.calendar.add(match.group(1), starts_at)
+                self.respond(f"Added {event.title} for {self._display_date(event.starts_at)}.")
+        elif lower in {"events", "calendar", "list events"}:
+            events = self.calendar.list()
+            self.respond("\n".join(f"{i}. {event.title} — {self._display_date(event.starts_at)}" for i, event in enumerate(events, 1)) if events else "Your calendar is empty.")
+        elif match := re.fullmatch(r"delete event (\d+)", lower):
+            event = self.calendar.delete(int(match.group(1)))
+            self.respond(f"Deleted {event.title}." if event else "That event number does not exist.")
         elif lower == "daily briefing":
             self.respond(self._daily_briefing())
         elif lower.startswith("set city "):
@@ -264,13 +283,15 @@ class VirtualAssistant:
         unfinished = [task for task in self.tasks.list() if not task.done]
         today_tasks = [task for task in unfinished if task.due_at and datetime.fromisoformat(task.due_at).date() <= today]
         reminders = [item for item in self.reminder_store.pending() if datetime.fromisoformat(item.due_at).date() <= today]
+        events = [item for item in self.calendar.list() if datetime.fromisoformat(item.starts_at).date() == today]
         task_text = "\n".join(f"• {task.title}" for task in today_tasks) or "• No tasks due today."
         reminder_text = "\n".join(f"• {item.message} at {self._display_date(item.due_at)}" for item in reminders) or "• No reminders today."
+        event_text = "\n".join(f"• {item.starts_at[11:]} — {item.title}" for item in events) or "• No events today."
         settings = self.settings_store.load()
         weather = self.web.weather(settings.city, settings.temperature_unit) if settings.city else "Set a default city to add weather."
         overdue = [task for task in unfinished if task.due_at and datetime.fromisoformat(task.due_at).date() < today]
         overdue_text = "\n".join(f"• {task.title}" for task in overdue) or "• No overdue tasks."
-        return f"Daily briefing for {today.strftime('%A, %B %d')}\n\nWeather\n{weather}\n\nOverdue\n{overdue_text}\n\nTasks\n{task_text}\n\nReminders\n{reminder_text}"
+        return f"Daily briefing for {today.strftime('%A, %B %d')}\n\nWeather\n{weather}\n\nToday's calendar\n{event_text}\n\nOverdue\n{overdue_text}\n\nTasks\n{task_text}\n\nReminders\n{reminder_text}"
 
     def run(self) -> None:
         self.reminders.start()
