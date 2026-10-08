@@ -143,7 +143,7 @@ class AssistantDashboard(tk.Tk):
         reminder_frame = ttk.LabelFrame(shell, text="Reminders", padding=16, style="Card.TLabelframe")
         reminder_frame.grid(row=3, column=1, sticky="nsew", padx=(8, 0), pady=(0, 16))
         reminder_frame.columnconfigure(0, weight=1)
-        reminder_frame.rowconfigure(3, weight=1)
+        reminder_frame.rowconfigure(4, weight=1)
         self.reminder_message = ttk.Entry(reminder_frame)
         self.reminder_message.insert(0, "What should I remind you about?")
         self.reminder_message.grid(row=0, column=0, sticky="ew")
@@ -152,12 +152,15 @@ class AssistantDashboard(tk.Tk):
         self.reminder_time.insert(0, "YYYY-MM-DD HH:MM")
         self.reminder_time.grid(row=1, column=0, sticky="ew", pady=(6, 0))
         self.reminder_time.bind("<FocusIn>", lambda _event: self._clear_placeholder(self.reminder_time, "YYYY-MM-DD HH:MM"))
-        ttk.Button(reminder_frame, text="+  Add reminder", command=self.add_reminder, style="Primary.TButton").grid(row=2, column=0, sticky="ew", pady=(6, 8))
+        self.reminder_repeat = ttk.Combobox(reminder_frame, values=("Once", "Daily", "Weekly", "Weekdays"), state="readonly")
+        self.reminder_repeat.set("Once")
+        self.reminder_repeat.grid(row=2, column=0, sticky="ew", pady=(6, 0))
+        ttk.Button(reminder_frame, text="+  Add reminder", command=self.add_reminder, style="Primary.TButton").grid(row=3, column=0, sticky="ew", pady=(6, 8))
         self.reminder_list = tk.Listbox(reminder_frame, height=4, activestyle="none", borderwidth=0, highlightthickness=1, highlightbackground="#e5e7eb", selectbackground="#dbeafe", selectforeground="#1e3a8a", background="#f9fafb", foreground="#1f2937", font=("Helvetica", 11))
-        self.reminder_list.grid(row=3, column=0, sticky="nsew", pady=(4, 0))
+        self.reminder_list.grid(row=4, column=0, sticky="nsew", pady=(4, 0))
         self.reminder_list.bind("<<ListboxSelect>>", self._select_reminder)
         reminder_actions = ttk.Frame(reminder_frame, style="Card.TLabelframe")
-        reminder_actions.grid(row=4, column=0, sticky="ew", pady=(8, 0))
+        reminder_actions.grid(row=5, column=0, sticky="ew", pady=(8, 0))
         reminder_actions.columnconfigure((0, 1), weight=1)
         self.update_reminder_button = ttk.Button(reminder_actions, text="Update selected", command=self.update_reminder, style="Secondary.TButton", state="disabled")
         self.update_reminder_button.grid(row=0, column=0, sticky="ew", padx=(0, 4))
@@ -283,11 +286,13 @@ class AssistantDashboard(tk.Tk):
         if due_at <= datetime.now():
             messagebox.showerror("Reminder", "Choose a future date and time.")
             return
-        self.reminders.add(message, due_at)
+        recurrence = "" if self.reminder_repeat.get() == "Once" else self.reminder_repeat.get().lower()
+        self.reminders.add(message, due_at, recurrence)
         self.reminder_message.delete(0, tk.END)
         self.reminder_message.insert(0, "What should I remind you about?")
         self.reminder_time.delete(0, tk.END)
         self.reminder_time.insert(0, "YYYY-MM-DD HH:MM")
+        self.reminder_repeat.set("Once")
         self.refresh()
 
     def delete_reminder(self) -> None:
@@ -304,6 +309,7 @@ class AssistantDashboard(tk.Tk):
             self.reminder_message.insert(0, reminder.message)
             self.reminder_time.delete(0, tk.END)
             self.reminder_time.insert(0, reminder.due_at.replace("T", " ")[:16])
+            self.reminder_repeat.set(reminder.recurrence.title() if reminder.recurrence else "Once")
         self._update_action_states()
 
     def update_reminder(self) -> None:
@@ -322,11 +328,13 @@ class AssistantDashboard(tk.Tk):
         if due_at <= datetime.now():
             messagebox.showerror("Reminder", "Choose a future date and time.")
             return
-        self.reminders.update(selected[0] + 1, message, due_at)
+        recurrence = "" if self.reminder_repeat.get() == "Once" else self.reminder_repeat.get().lower()
+        self.reminders.update(selected[0] + 1, message, due_at, recurrence)
         self.reminder_message.delete(0, tk.END)
         self.reminder_message.insert(0, "What should I remind you about?")
         self.reminder_time.delete(0, tk.END)
         self.reminder_time.insert(0, "YYYY-MM-DD HH:MM")
+        self.reminder_repeat.set("Once")
         self.refresh()
 
     def _clear_due_placeholder(self, _event=None) -> None:
@@ -389,7 +397,8 @@ class AssistantDashboard(tk.Tk):
             self.event_list.insert(tk.END, f"{datetime.fromisoformat(event.starts_at):%b %d, %I:%M %p}  ·  {event.title}")
         self.reminder_list.delete(0, tk.END)
         for reminder in self.reminders.pending():
-            self.reminder_list.insert(tk.END, f"{datetime.fromisoformat(reminder.due_at):%b %d, %I:%M %p}  ·  {reminder.message}")
+            repeat = f" · {reminder.recurrence.title()}" if reminder.recurrence else ""
+            self.reminder_list.insert(tk.END, f"{datetime.fromisoformat(reminder.due_at):%b %d, %I:%M %p}  ·  {reminder.message}{repeat}")
         self.show_briefing()
         self._update_action_states()
 

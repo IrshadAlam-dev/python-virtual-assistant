@@ -37,6 +37,7 @@ class Reminder:
     due_at: str
     delivered: bool = False
     created_at: str = ""
+    recurrence: str = ""
 
 
 @dataclass
@@ -370,10 +371,18 @@ class ReminderStore:
     def _write(self, reminders: list[Reminder]) -> None:
         self.path.write_text(json.dumps([asdict(item) for item in reminders], indent=2) + "\n", encoding="utf-8")
 
-    def add(self, message: str, due: datetime) -> Reminder:
+    @staticmethod
+    def _first_occurrence(due: datetime, recurrence: str) -> datetime:
+        if recurrence == "weekdays" and due.weekday() >= 5:
+            due += timedelta(days=7 - due.weekday())
+        return due
+
+    def add(self, message: str, due: datetime, recurrence: str = "") -> Reminder:
+        due = self._first_occurrence(due, recurrence)
         reminder = Reminder(
             message=message.strip(), due_at=due.isoformat(timespec="seconds"),
             created_at=datetime.now().isoformat(timespec="seconds"),
+            recurrence=recurrence,
         )
         reminders = self._read()
         reminders.append(reminder)
@@ -385,7 +394,15 @@ class ReminderStore:
         reminders = self._read()
         due = [item for item in reminders if not item.delivered and datetime.fromisoformat(item.due_at) <= now]
         for item in due:
-            item.delivered = True
+            if item.recurrence:
+                next_due = datetime.fromisoformat(item.due_at)
+                while next_due <= now:
+                    next_due += timedelta(days=7 if item.recurrence == "weekly" else 1)
+                    if item.recurrence == "weekdays" and next_due.weekday() >= 5:
+                        next_due += timedelta(days=7 - next_due.weekday())
+                item.due_at = next_due.isoformat(timespec="seconds")
+            else:
+                item.delivered = True
         if due:
             self._write(reminders)
         return due
@@ -393,14 +410,17 @@ class ReminderStore:
     def pending(self) -> list[Reminder]:
         return [item for item in self._read() if not item.delivered]
 
-    def update(self, number: int, message: str, due: datetime) -> Reminder | None:
+    def update(self, number: int, message: str, due: datetime, recurrence: str | None = None) -> Reminder | None:
         reminders = self._read()
         pending = [item for item in reminders if not item.delivered]
         if not 1 <= number <= len(pending):
             return None
         reminder = pending[number - 1]
         reminder.message = message.strip()
+        recurrence = reminder.recurrence if recurrence is None else recurrence
+        due = self._first_occurrence(due, recurrence)
         reminder.due_at = due.isoformat(timespec="seconds")
+        reminder.recurrence = recurrence
         self._write(reminders)
         return reminder
 

@@ -10,6 +10,7 @@ A command-line Python based virtual assistant. It supports typed commands out of
 - Task creation, priorities, due dates, completion, and removal persisted in `data/tasks.json`
 - Persistent notes and reminders stored locally in `data/`
 - Add, edit, and delete pending reminders from the dashboard or command line
+- Recurring reminders on a daily, weekly, or weekday schedule
 - A local calendar for adding, listing, editing, and deleting events, with a 10-minute alert while the app is running
 - A daily briefing of tasks and reminders due today
 - A Tkinter dashboard for tasks, notes, reminders, calendar events, current weather, and a daily briefing
@@ -72,6 +73,10 @@ notes
 open https://www.python.org
 remind me in 15 minutes to stretch
 remind me on 2026-10-01 14:30 to call the project mentor
+remind me daily at 08:30 to take medication
+remind me weekdays at 09:00 to review my priorities
+remind me weekly at 17:00 to plan the coming week
+edit reminder 1 to Take a short walk at 2026-10-09 14:30
 daily briefing
 set city Delhi
 set unit Fahrenheit

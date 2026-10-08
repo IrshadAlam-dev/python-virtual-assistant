@@ -25,6 +25,7 @@ HELP = """Commands:
   delete note <number>              Delete a note
   remind me in <minutes> minutes to <message>
   remind me on YYYY-MM-DD HH:MM to <message>
+  remind me daily/weekly/weekdays at HH:MM to <message>
   reminders                         List pending reminders
   edit reminder <number> to <message> at YYYY-MM-DD HH:MM
   delete reminder <number>          Delete a reminder
@@ -148,6 +149,19 @@ class VirtualAssistant:
             address = command[5:].strip()
             self.web.open_url(address)
             self.respond(f"Opening {address}.")
+        elif match := re.fullmatch(r"remind me (daily|weekly|weekdays) at (\d{1,2}:\d{2}) to (.+)", command, re.IGNORECASE):
+            recurrence, time_text, message = match.groups()
+            try:
+                due = datetime.combine(datetime.now().date(), datetime.strptime(time_text, "%H:%M").time())
+                if due <= datetime.now():
+                    due += timedelta(days=1)
+                if recurrence.lower() == "weekdays":
+                    while due.weekday() >= 5:
+                        due += timedelta(days=1)
+                item = self.reminder_store.add(message, due, recurrence.lower())
+                self.respond(f"I will remind you {item.recurrence} at {due.strftime('%I:%M %p')}.")
+            except ValueError:
+                self.respond("Use a time like 08:30 or 14:30.")
         elif match := re.fullmatch(r"remind me in (\d+) minutes? to (.+)", command, re.IGNORECASE):
             minutes, message = int(match.group(1)), match.group(2)
             due = self.reminders.schedule(minutes, message)
@@ -177,7 +191,7 @@ class VirtualAssistant:
             self.respond("Note deleted." if note else "That note number does not exist.")
         elif lower in {"reminders", "list reminders"}:
             reminders = self.reminder_store.pending()
-            self.respond("\n".join(f"{i}. {item.message} — {self._display_date(item.due_at)}" for i, item in enumerate(reminders, 1)) if reminders else "You have no pending reminders.")
+            self.respond("\n".join(f"{i}. {item.message} — {self._display_date(item.due_at)}{f' (repeats {item.recurrence})' if item.recurrence else ''}" for i, item in enumerate(reminders, 1)) if reminders else "You have no pending reminders.")
         elif match := re.fullmatch(r"edit reminder (\d+) to (.+) at (\d{4}-\d{2}-\d{2} \d{2}:\d{2})", command, re.IGNORECASE):
             try:
                 due = datetime.strptime(match.group(3), "%Y-%m-%d %H:%M")
