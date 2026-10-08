@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import tkinter as tk
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from tkinter import messagebox, ttk
 
@@ -161,11 +161,13 @@ class AssistantDashboard(tk.Tk):
         self.reminder_list.bind("<<ListboxSelect>>", self._select_reminder)
         reminder_actions = ttk.Frame(reminder_frame, style="Card.TLabelframe")
         reminder_actions.grid(row=5, column=0, sticky="ew", pady=(8, 0))
-        reminder_actions.columnconfigure((0, 1), weight=1)
+        reminder_actions.columnconfigure((0, 1, 2), weight=1)
         self.update_reminder_button = ttk.Button(reminder_actions, text="Update selected", command=self.update_reminder, style="Secondary.TButton", state="disabled")
-        self.update_reminder_button.grid(row=0, column=0, sticky="ew", padx=(0, 4))
+        self.update_reminder_button.grid(row=0, column=0, sticky="ew", padx=(0, 3))
+        self.snooze_reminder_button = ttk.Button(reminder_actions, text="Snooze 24h", command=self.snooze_reminder, style="Secondary.TButton", state="disabled")
+        self.snooze_reminder_button.grid(row=0, column=1, sticky="ew", padx=3)
         self.delete_reminder_button = ttk.Button(reminder_actions, text="Delete selected", command=self.delete_reminder, style="Danger.TButton", state="disabled")
-        self.delete_reminder_button.grid(row=0, column=1, sticky="ew", padx=(4, 0))
+        self.delete_reminder_button.grid(row=0, column=2, sticky="ew", padx=(3, 0))
 
         briefing = ttk.LabelFrame(shell, text="Today at a glance", padding=16, style="Card.TLabelframe")
         briefing.grid(row=4, column=0, columnspan=2, sticky="nsew")
@@ -301,6 +303,12 @@ class AssistantDashboard(tk.Tk):
             self.reminders.delete(selected[0] + 1)
             self.refresh()
 
+    def snooze_reminder(self) -> None:
+        selected = self.reminder_list.curselection()
+        if selected:
+            self.reminders.snooze(selected[0] + 1, datetime.now() + timedelta(hours=24))
+            self.refresh()
+
     def _select_reminder(self, _event=None) -> None:
         selected = self.reminder_list.curselection()
         if selected:
@@ -308,7 +316,7 @@ class AssistantDashboard(tk.Tk):
             self.reminder_message.delete(0, tk.END)
             self.reminder_message.insert(0, reminder.message)
             self.reminder_time.delete(0, tk.END)
-            self.reminder_time.insert(0, reminder.due_at.replace("T", " ")[:16])
+            self.reminder_time.insert(0, (reminder.snoozed_until or reminder.due_at).replace("T", " ")[:16])
             self.reminder_repeat.set(reminder.recurrence.title() if reminder.recurrence else "Once")
         self._update_action_states()
 
@@ -357,6 +365,7 @@ class AssistantDashboard(tk.Tk):
         self.delete_event_button.config(state=event_state)
         self.update_event_button.config(state=event_state)
         self.update_reminder_button.config(state=reminder_state)
+        self.snooze_reminder_button.config(state=reminder_state)
         self.delete_reminder_button.config(state=reminder_state)
 
     def show_weather(self) -> None:
@@ -372,13 +381,13 @@ class AssistantDashboard(tk.Tk):
         today = datetime.now().date()
         due_tasks = [task for task in self.tasks.list() if not task.done and task.due_at and datetime.fromisoformat(task.due_at).date() <= today]
         events = [item for item in self.calendar.list() if datetime.fromisoformat(item.starts_at).date() == today]
-        due_reminders = [item for item in self.reminders.pending() if datetime.fromisoformat(item.due_at).date() <= today]
+        due_reminders = [item for item in self.reminders.pending() if datetime.fromisoformat(item.snoozed_until or item.due_at).date() <= today]
         lines = [f"{today:%A, %B %d}", "", "Today's calendar:"]
         lines += [f"• {datetime.fromisoformat(event.starts_at):%I:%M %p} — {event.title}" for event in events] or ["• No events today."]
         lines += ["", "Tasks due today:"]
         lines += [f"• [{task.priority}] {task.title}" for task in due_tasks] or ["• None"]
         lines += ["", "Reminders today:"]
-        lines += [f"• {item.message} at {datetime.fromisoformat(item.due_at):%I:%M %p}" for item in due_reminders] or ["• None"]
+        lines += [f"• {item.message} at {datetime.fromisoformat(item.snoozed_until or item.due_at):%I:%M %p}" for item in due_reminders] or ["• None"]
         self.briefing_text.config(state="normal")
         self.briefing_text.delete("1.0", tk.END)
         self.briefing_text.insert("1.0", "\n".join(lines))
@@ -398,7 +407,9 @@ class AssistantDashboard(tk.Tk):
         self.reminder_list.delete(0, tk.END)
         for reminder in self.reminders.pending():
             repeat = f" · {reminder.recurrence.title()}" if reminder.recurrence else ""
-            self.reminder_list.insert(tk.END, f"{datetime.fromisoformat(reminder.due_at):%b %d, %I:%M %p}  ·  {reminder.message}{repeat}")
+            when = reminder.snoozed_until or reminder.due_at
+            snoozed = " · Snoozed" if reminder.snoozed_until else ""
+            self.reminder_list.insert(tk.END, f"{datetime.fromisoformat(when):%b %d, %I:%M %p}  ·  {reminder.message}{repeat}{snoozed}")
         self.show_briefing()
         self._update_action_states()
 

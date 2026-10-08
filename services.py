@@ -38,6 +38,7 @@ class Reminder:
     delivered: bool = False
     created_at: str = ""
     recurrence: str = ""
+    snoozed_until: str = ""
 
 
 @dataclass
@@ -392,23 +393,39 @@ class ReminderStore:
     def due(self, now: datetime | None = None) -> list[Reminder]:
         now = now or datetime.now()
         reminders = self._read()
-        due = [item for item in reminders if not item.delivered and datetime.fromisoformat(item.due_at) <= now]
+        due = [
+            item for item in reminders
+            if not item.delivered
+            and datetime.fromisoformat(item.snoozed_until or item.due_at) <= now
+        ]
         for item in due:
             if item.recurrence:
                 next_due = datetime.fromisoformat(item.due_at)
-                while next_due <= now:
+                advance_through = max(now, datetime.fromisoformat(item.due_at)) if item.snoozed_until else now
+                while next_due <= advance_through:
                     next_due += timedelta(days=7 if item.recurrence == "weekly" else 1)
                     if item.recurrence == "weekdays" and next_due.weekday() >= 5:
                         next_due += timedelta(days=7 - next_due.weekday())
                 item.due_at = next_due.isoformat(timespec="seconds")
             else:
                 item.delivered = True
+            item.snoozed_until = ""
         if due:
             self._write(reminders)
         return due
 
     def pending(self) -> list[Reminder]:
         return [item for item in self._read() if not item.delivered]
+
+    def snooze(self, number: int, until: datetime) -> Reminder | None:
+        reminders = self._read()
+        pending = [item for item in reminders if not item.delivered]
+        if not 1 <= number <= len(pending):
+            return None
+        reminder = pending[number - 1]
+        reminder.snoozed_until = until.isoformat(timespec="seconds")
+        self._write(reminders)
+        return reminder
 
     def update(self, number: int, message: str, due: datetime, recurrence: str | None = None) -> Reminder | None:
         reminders = self._read()
@@ -421,6 +438,7 @@ class ReminderStore:
         due = self._first_occurrence(due, recurrence)
         reminder.due_at = due.isoformat(timespec="seconds")
         reminder.recurrence = recurrence
+        reminder.snoozed_until = ""
         self._write(reminders)
         return reminder
 

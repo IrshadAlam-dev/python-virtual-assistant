@@ -27,6 +27,7 @@ HELP = """Commands:
   remind me on YYYY-MM-DD HH:MM to <message>
   remind me daily/weekly/weekdays at HH:MM to <message>
   reminders                         List pending reminders
+  snooze reminder <number>          Delay a reminder for 24 hours
   edit reminder <number> to <message> at YYYY-MM-DD HH:MM
   delete reminder <number>          Delete a reminder
   add event <title> on <date/time>  Add a local calendar event
@@ -191,7 +192,11 @@ class VirtualAssistant:
             self.respond("Note deleted." if note else "That note number does not exist.")
         elif lower in {"reminders", "list reminders"}:
             reminders = self.reminder_store.pending()
-            self.respond("\n".join(f"{i}. {item.message} — {self._display_date(item.due_at)}{f' (repeats {item.recurrence})' if item.recurrence else ''}" for i, item in enumerate(reminders, 1)) if reminders else "You have no pending reminders.")
+            self.respond("\n".join(f"{i}. {item.message} — {self._display_date(item.snoozed_until or item.due_at)}{f' (repeats {item.recurrence})' if item.recurrence else ''}{' (snoozed)' if item.snoozed_until else ''}" for i, item in enumerate(reminders, 1)) if reminders else "You have no pending reminders.")
+        elif match := re.fullmatch(r"snooze reminder (\d+)", lower):
+            until = datetime.now() + timedelta(hours=24)
+            item = self.reminder_store.snooze(int(match.group(1)), until)
+            self.respond(f"Snoozed until {self._display_date(item.snoozed_until)}." if item else "That reminder number does not exist.")
         elif match := re.fullmatch(r"edit reminder (\d+) to (.+) at (\d{4}-\d{2}-\d{2} \d{2}:\d{2})", command, re.IGNORECASE):
             try:
                 due = datetime.strptime(match.group(3), "%Y-%m-%d %H:%M")
@@ -317,10 +322,10 @@ class VirtualAssistant:
         today = datetime.now().date()
         unfinished = [task for task in self.tasks.list() if not task.done]
         today_tasks = [task for task in unfinished if task.due_at and datetime.fromisoformat(task.due_at).date() <= today]
-        reminders = [item for item in self.reminder_store.pending() if datetime.fromisoformat(item.due_at).date() <= today]
+        reminders = [item for item in self.reminder_store.pending() if datetime.fromisoformat(item.snoozed_until or item.due_at).date() <= today]
         events = [item for item in self.calendar.list() if datetime.fromisoformat(item.starts_at).date() == today]
         task_text = "\n".join(f"• {task.title}" for task in today_tasks) or "• No tasks due today."
-        reminder_text = "\n".join(f"• {item.message} at {self._display_date(item.due_at)}" for item in reminders) or "• No reminders today."
+        reminder_text = "\n".join(f"• {item.message} at {self._display_date(item.snoozed_until or item.due_at)}" for item in reminders) or "• No reminders today."
         event_text = "\n".join(f"• {item.starts_at[11:]} — {item.title}" for item in events) or "• No events today."
         settings = self.settings_store.load()
         weather = self.web.weather(settings.city, settings.temperature_unit) if settings.city else "Set a default city to add weather."
