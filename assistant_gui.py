@@ -168,6 +168,8 @@ class AssistantDashboard(tk.Tk):
         self.snooze_reminder_button.grid(row=0, column=1, sticky="ew", padx=3)
         self.delete_reminder_button = ttk.Button(reminder_actions, text="Delete selected", command=self.delete_reminder, style="Danger.TButton", state="disabled")
         self.delete_reminder_button.grid(row=0, column=2, sticky="ew", padx=(3, 0))
+        self.stop_repeat_button = ttk.Button(reminder_actions, text="Stop repeating · keep next occurrence", command=self.stop_repeating_reminder, style="Secondary.TButton", state="disabled")
+        self.stop_repeat_button.grid(row=1, column=0, columnspan=3, sticky="ew", pady=(6, 0))
 
         briefing = ttk.LabelFrame(shell, text="Today at a glance", padding=16, style="Card.TLabelframe")
         briefing.grid(row=4, column=0, columnspan=2, sticky="nsew")
@@ -309,6 +311,12 @@ class AssistantDashboard(tk.Tk):
             self.reminders.snooze(selected[0] + 1, datetime.now() + timedelta(hours=24))
             self.refresh()
 
+    def stop_repeating_reminder(self) -> None:
+        selected = self.reminder_list.curselection()
+        if selected:
+            self.reminders.stop_repeating(selected[0] + 1)
+            self.refresh()
+
     def _select_reminder(self, _event=None) -> None:
         selected = self.reminder_list.curselection()
         if selected:
@@ -359,6 +367,9 @@ class AssistantDashboard(tk.Tk):
         note_state = "normal" if self.note_list.curselection() else "disabled"
         event_state = "normal" if self.event_list.curselection() else "disabled"
         reminder_state = "normal" if self.reminder_list.curselection() else "disabled"
+        selected_reminders = self.reminders.pending()
+        reminder_index = self.reminder_list.curselection()
+        repeat_state = "normal" if reminder_index and reminder_index[0] < len(selected_reminders) and selected_reminders[reminder_index[0]].recurrence else "disabled"
         self.complete_button.config(state=task_state)
         self.delete_task_button.config(state=task_state)
         self.delete_note_button.config(state=note_state)
@@ -367,6 +378,7 @@ class AssistantDashboard(tk.Tk):
         self.update_reminder_button.config(state=reminder_state)
         self.snooze_reminder_button.config(state=reminder_state)
         self.delete_reminder_button.config(state=reminder_state)
+        self.stop_repeat_button.config(state=repeat_state)
 
     def show_weather(self) -> None:
         settings = self.settings.load()

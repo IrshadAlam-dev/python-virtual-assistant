@@ -427,6 +427,16 @@ class ReminderStore:
         self._write(reminders)
         return reminder
 
+    def stop_repeating(self, number: int) -> Reminder | None:
+        reminders = self._read()
+        pending = [item for item in reminders if not item.delivered]
+        if not 1 <= number <= len(pending) or not pending[number - 1].recurrence:
+            return None
+        reminder = pending[number - 1]
+        reminder.recurrence = ""
+        self._write(reminders)
+        return reminder
+
     def update(self, number: int, message: str, due: datetime, recurrence: str | None = None) -> Reminder | None:
         reminders = self._read()
         pending = [item for item in reminders if not item.delivered]

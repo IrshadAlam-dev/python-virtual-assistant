@@ -28,6 +28,7 @@ HELP = """Commands:
   remind me daily/weekly/weekdays at HH:MM to <message>
   reminders                         List pending reminders
   snooze reminder <number>          Delay a reminder for 24 hours
+  stop repeating reminder <number>  Keep its next occurrence as a one-time reminder
   edit reminder <number> to <message> at YYYY-MM-DD HH:MM
   delete reminder <number>          Delete a reminder
   add event <title> on <date/time>  Add a local calendar event
@@ -197,6 +198,9 @@ class VirtualAssistant:
             until = datetime.now() + timedelta(hours=24)
             item = self.reminder_store.snooze(int(match.group(1)), until)
             self.respond(f"Snoozed until {self._display_date(item.snoozed_until)}." if item else "That reminder number does not exist.")
+        elif match := re.fullmatch(r"stop repeating reminder (\d+)", lower):
+            item = self.reminder_store.stop_repeating(int(match.group(1)))
+            self.respond(f"Stopped the repeat. The next reminder is scheduled for {self._display_date(item.snoozed_until or item.due_at)}." if item else "That reminder number does not exist or does not repeat.")
         elif match := re.fullmatch(r"edit reminder (\d+) to (.+) at (\d{4}-\d{2}-\d{2} \d{2}:\d{2})", command, re.IGNORECASE):
             try:
                 due = datetime.strptime(match.group(3), "%Y-%m-%d %H:%M")

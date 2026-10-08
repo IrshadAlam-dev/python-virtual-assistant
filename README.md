@@ -11,6 +11,7 @@ A command-line Python based virtual assistant. It supports typed commands out of
 - Persistent notes and reminders stored locally in `data/`
 - Add, edit, and delete pending reminders from the dashboard or command line
 - Recurring reminders on a daily, weekly, or weekday schedule
+- Stop a recurring reminder while keeping its next occurrence as a one-time reminder
 - Snooze pending reminders for 24 hours from the command line or dashboard
 - A local calendar for adding, listing, editing, and deleting events, with a 10-minute alert while the app is running
 - A daily briefing of tasks and reminders due today
@@ -78,6 +79,7 @@ remind me daily at 08:30 to take medication
 remind me weekdays at 09:00 to review my priorities
 remind me weekly at 17:00 to plan the coming week
 snooze reminder 1
+stop repeating reminder 1
 edit reminder 1 to Take a short walk at 2026-10-09 14:30
 daily briefing
 set city Delhi
