@@ -39,6 +39,7 @@ class Reminder:
     created_at: str = ""
     recurrence: str = ""
     snoozed_until: str = ""
+    paused: bool = False
 
 
 @dataclass
@@ -395,7 +396,7 @@ class ReminderStore:
         reminders = self._read()
         due = [
             item for item in reminders
-            if not item.delivered
+            if not item.delivered and not item.paused
             and datetime.fromisoformat(item.snoozed_until or item.due_at) <= now
         ]
         for item in due:
@@ -434,6 +435,16 @@ class ReminderStore:
             return None
         reminder = pending[number - 1]
         reminder.recurrence = ""
+        self._write(reminders)
+        return reminder
+
+    def set_paused(self, number: int, paused: bool) -> Reminder | None:
+        reminders = self._read()
+        pending = [item for item in reminders if not item.delivered]
+        if not 1 <= number <= len(pending) or not pending[number - 1].recurrence:
+            return None
+        reminder = pending[number - 1]
+        reminder.paused = paused
         self._write(reminders)
         return reminder
 

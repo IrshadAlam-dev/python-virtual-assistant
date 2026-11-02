@@ -170,6 +170,8 @@ class AssistantDashboard(tk.Tk):
         self.delete_reminder_button.grid(row=0, column=2, sticky="ew", padx=(3, 0))
         self.stop_repeat_button = ttk.Button(reminder_actions, text="Stop repeating · keep next occurrence", command=self.stop_repeating_reminder, style="Secondary.TButton", state="disabled")
         self.stop_repeat_button.grid(row=1, column=0, columnspan=3, sticky="ew", pady=(6, 0))
+        self.pause_repeat_button = ttk.Button(reminder_actions, text="Pause repeating reminder", command=self.toggle_repeat_pause, style="Secondary.TButton", state="disabled")
+        self.pause_repeat_button.grid(row=2, column=0, columnspan=3, sticky="ew", pady=(6, 0))
 
         briefing = ttk.LabelFrame(shell, text="Today at a glance", padding=16, style="Card.TLabelframe")
         briefing.grid(row=4, column=0, columnspan=2, sticky="nsew")
@@ -317,6 +319,14 @@ class AssistantDashboard(tk.Tk):
             self.reminders.stop_repeating(selected[0] + 1)
             self.refresh()
 
+    def toggle_repeat_pause(self) -> None:
+        selected = self.reminder_list.curselection()
+        if selected:
+            pending = self.reminders.pending()
+            if selected[0] < len(pending) and pending[selected[0]].recurrence:
+                self.reminders.set_paused(selected[0] + 1, not pending[selected[0]].paused)
+                self.refresh()
+
     def _select_reminder(self, _event=None) -> None:
         selected = self.reminder_list.curselection()
         if selected:
@@ -369,7 +379,8 @@ class AssistantDashboard(tk.Tk):
         reminder_state = "normal" if self.reminder_list.curselection() else "disabled"
         selected_reminders = self.reminders.pending()
         reminder_index = self.reminder_list.curselection()
-        repeat_state = "normal" if reminder_index and reminder_index[0] < len(selected_reminders) and selected_reminders[reminder_index[0]].recurrence else "disabled"
+        selected_reminder = selected_reminders[reminder_index[0]] if reminder_index and reminder_index[0] < len(selected_reminders) else None
+        repeat_state = "normal" if selected_reminder and selected_reminder.recurrence else "disabled"
         self.complete_button.config(state=task_state)
         self.delete_task_button.config(state=task_state)
         self.delete_note_button.config(state=note_state)
@@ -379,6 +390,7 @@ class AssistantDashboard(tk.Tk):
         self.snooze_reminder_button.config(state=reminder_state)
         self.delete_reminder_button.config(state=reminder_state)
         self.stop_repeat_button.config(state=repeat_state)
+        self.pause_repeat_button.config(state=repeat_state, text="Resume repeating reminder" if selected_reminder and selected_reminder.paused else "Pause repeating reminder")
 
     def show_weather(self) -> None:
         settings = self.settings.load()
@@ -393,7 +405,7 @@ class AssistantDashboard(tk.Tk):
         today = datetime.now().date()
         due_tasks = [task for task in self.tasks.list() if not task.done and task.due_at and datetime.fromisoformat(task.due_at).date() <= today]
         events = [item for item in self.calendar.list() if datetime.fromisoformat(item.starts_at).date() == today]
-        due_reminders = [item for item in self.reminders.pending() if datetime.fromisoformat(item.snoozed_until or item.due_at).date() <= today]
+        due_reminders = [item for item in self.reminders.pending() if not item.paused and datetime.fromisoformat(item.snoozed_until or item.due_at).date() <= today]
         lines = [f"{today:%A, %B %d}", "", "Today's calendar:"]
         lines += [f"• {datetime.fromisoformat(event.starts_at):%I:%M %p} — {event.title}" for event in events] or ["• No events today."]
         lines += ["", "Tasks due today:"]
@@ -421,7 +433,8 @@ class AssistantDashboard(tk.Tk):
             repeat = f" · {reminder.recurrence.title()}" if reminder.recurrence else ""
             when = reminder.snoozed_until or reminder.due_at
             snoozed = " · Snoozed" if reminder.snoozed_until else ""
-            self.reminder_list.insert(tk.END, f"{datetime.fromisoformat(when):%b %d, %I:%M %p}  ·  {reminder.message}{repeat}{snoozed}")
+            paused = " · Paused" if reminder.paused else ""
+            self.reminder_list.insert(tk.END, f"{datetime.fromisoformat(when):%b %d, %I:%M %p}  ·  {reminder.message}{repeat}{paused}{snoozed}")
         self.show_briefing()
         self._update_action_states()
 
